@@ -50,7 +50,7 @@ def load_model():
 model_pipeline, label_encoder = load_model()
 
 # Load a tech/AI Lottie animation (Replace URL with any you like from Lottiefiles)
-lottie_ai = load_lottieurl("https://lottie.host/8b422a55-2dbd-4cf2-ae7d-14a572a17cb6/a34cZc2Uv3.json")
+lottie_ai = load_lottieurl("https://lottie.host/bf841617-9d37-40ba-91b4-f4ffacf9a035/lXDjyLgI8V.json")
 
 # -----------------------------------------
 # 3. UI Header
@@ -60,8 +60,8 @@ with col1:
     if lottie_ai:
         st_lottie(lottie_ai, height=100, key="header_anim")
 with col2:
-    st.markdown("<h1 class='tech-font'>AI Expense Classifier</h1>", unsafe_allow_html=True)
-    st.write("Neural classification for enterprise accounts payable.")
+    st.markdown("<h1 class='tech-font'>Expense Classifier</h1>", unsafe_allow_html=True)
+    st.write("ML Classification for enterprise accounts payable.")
 
 st.divider()
 
@@ -98,7 +98,7 @@ with st.container():
 @st.dialog("Prediction Complete")
 def show_prediction_popup(category):
     # Success Lottie Animation
-    lottie_success = load_lottieurl("https://lottie.host/171f11e9-9be9-4cda-921f-c0499e829377/9G4B02O5P6.json")
+    lottie_success = load_lottieurl("https://lottie.host/6b1ee372-4e76-4c33-a2d0-8cd709f4c717/fqrItzBy5I.json")
     if lottie_success:
         st_lottie(lottie_success, height=150, key="success_anim")
     
