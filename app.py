@@ -50,7 +50,8 @@ def load_model():
 model_pipeline, label_encoder = load_model()
 
 # Load a tech/AI Lottie animation (Replace URL with any you like from Lottiefiles)
-lottie_ai = load_lottieurl("https://lottie.host/bf841617-9d37-40ba-91b4-f4ffacf9a035/lXDjyLgI8V.json")
+#lottie_ai = load_lottieurl("https://lottie.host/bf841617-9d37-40ba-91b4-f4ffacf9a035/lXDjyLgI8V.json")
+lottie_ai = load_lottieurl("https://lottie.host/42d6bc52-e8e3-4716-a17e-273816e6a15e/5rXGQFkIcg.json")
 
 # -----------------------------------------
 # 3. UI Header
