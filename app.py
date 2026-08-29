@@ -296,3 +296,5 @@ if monthly_data is not None:
             "series": [{"name": 'Risk Dimensions', "type": 'radar', "data": radar_data}]
         }
         st_echarts(options=risk_options, height="380px")
+else:
+    st.warning("Please ensure 'master_financial_dataset.csv' is in the same directory to render the intelligence charts.")
