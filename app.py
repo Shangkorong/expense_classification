@@ -7,128 +7,102 @@ from streamlit_lottie import st_lottie
 # -----------------------------------------
 # 1. Page Configuration & Custom CSS
 # -----------------------------------------
-st.set_page_config(page_title="Intelligent Expense AI", page_icon="🤖", layout="centered")
+st.set_page_config(page_title="Intelligent Financial AI", page_icon="🚀", layout="centered")
 
-# Custom CSS for tech-oriented fonts and aesthetics
 st.markdown("""
     <style>
     @import url('https://fonts.googleapis.com/css2?family=Share+Tech+Mono&display=swap');
-    
-    .tech-font {
-        font-family: 'Share Tech Mono', monospace;
-        color: #00FF41; /* Hacker Green */
-        text-align: center;
-    }
-    .big-prediction {
-        font-family: 'Share Tech Mono', monospace;
-        font-size: 28px;
-        color: #FFFFFF;
-        text-align: center;
-        background-color: #1E1E1E;
-        padding: 20px;
-        border-radius: 10px;
-        border: 1px solid #00FF41;
-    }
+    .tech-font { font-family: 'Share Tech Mono', monospace; color: #00FF41; text-align: center; }
+    .big-prediction { font-family: 'Share Tech Mono', monospace; font-size: 24px; color: #FFFFFF; text-align: center; background-color: #1E1E1E; padding: 15px; border-radius: 10px; border: 1px solid #00FF41; }
+    .risk-metric { font-family: 'Share Tech Mono', monospace; font-size: 16px; color: #FFA500; margin-top: 10px; }
     </style>
 """, unsafe_allow_html=True)
 
 # -----------------------------------------
-# 2. Helper Functions (Lottie & Model Load)
+# 2. Helper Functions
 # -----------------------------------------
 def load_lottieurl(url: str):
     r = requests.get(url)
-    if r.status_code != 200:
-        return None
-    return r.json()
+    return r.json() if r.status_code == 200 else None
 
 @st.cache_resource
-def load_model():
-    pipeline = joblib.load('expense_model_pipeline.pkl')
-    encoder = joblib.load('expense_label_encoder.pkl')
-    return pipeline, encoder
+def load_all_assets():
+    models = {
+        'expense': joblib.load('expense_model_pipeline.pkl'),
+        'revenue': joblib.load('revenue_model_pipeline.pkl'),
+        'default': joblib.load('default_model_pipeline.pkl'),
+        'credit': joblib.load('credit_risk_model.pkl'),
+        'profit': joblib.load('profitability_model.pkl'),
+        'audit': joblib.load('audit_risk_model.pkl')
+    }
+    encoders = {
+        'expense': joblib.load('expense_label_encoder.pkl'),
+        'risk': joblib.load('risk_label_encoder.pkl')
+    }
+    return models, encoders
 
-model_pipeline, label_encoder = load_model()
-
-# Load a tech/AI Lottie animation (Replace URL with any you like from Lottiefiles)
-#lottie_ai = load_lottieurl("https://lottie.host/bf841617-9d37-40ba-91b4-f4ffacf9a035/lXDjyLgI8V.json")
+assets, encoders = load_all_assets()
 lottie_ai = load_lottieurl("https://lottie.host/42d6bc52-e8e3-4716-a17e-273816e6a15e/5rXGQFkIcg.json")
 
 # -----------------------------------------
-# 3. UI Header
+# 3. UI Layout
 # -----------------------------------------
 col1, col2 = st.columns([1, 4])
 with col1:
-    if lottie_ai:
-        st_lottie(lottie_ai, height=100, key="header_anim")
+    if lottie_ai: st_lottie(lottie_ai, height=100)
 with col2:
-    st.markdown("<h1 class='tech-font'>Expense Classifier</h1>", unsafe_allow_html=True)
-    st.write("ML Classification for enterprise accounts payable.")
+    st.markdown("<h1 class='tech-font'>Finance Intelligence Hub</h1>", unsafe_allow_html=True)
+    st.write("Multi-model AI for Expense, Revenue, and Risk Analysis.")
 
 st.divider()
 
 # -----------------------------------------
-# 4. Form Inputs
+# 4. Inputs
 # -----------------------------------------
-# Note: In Streamlit, to allow typing a new vendor, we use a conditional text input.
-known_vendors = ["Synopsys", "AWS", "WeWork", "LinkedIn", "Dell", "Other (Type New)"]
-
 with st.container():
     col_a, col_b = st.columns(2)
-    
     with col_a:
-        selected_vendor = st.selectbox("Vendor", known_vendors)
-        if selected_vendor == "Other (Type New)":
-            final_vendor = st.text_input("Enter New Vendor Name", placeholder="e.g., Nexus Tech")
-        else:
-            final_vendor = selected_vendor
-            
+        vendor = st.text_input("Vendor Name", "Amazon Web Services")
         division = st.selectbox("Division", ["Software Division", "VLSI Division", "Corporate / Shared"])
-        department = st.selectbox("Department", ["Software Engineering & Dev", "VLSI Engineering & Design", "Facilities & HR", "Sales & Marketing", "Finance & Legal", "IT & Telecom"])
-        cost_center = st.selectbox("Cost Center", ["CC-SW-DEV", "CC-VLSI-ENG", "CC-CORP-HR", "CC-CORP-MKT", "CC-CORP-FIN", "CC-CORP-IT"])
-
+        dept = st.selectbox("Department", ["IT & Telecom", "Software Engineering & Dev", "Finance & Legal"])
+        cc = st.selectbox("Cost Center", ["CC-CORP-IT", "CC-SW-DEV", "CC-CORP-FIN"])
     with col_b:
-        currency = st.selectbox("Currency", ["INR", "USD", "EUR", "GBP"])
-        payment_method = st.selectbox("Payment Method", ["Bank Transfer (RTGS)", "Bank Transfer (NEFT)", "Wire Transfer", "Corporate Credit Card", "Corporate UPI"])
-        amount = st.number_input("Amount", min_value=0.0, value=15000.0, step=1000.0)
-        tax = st.number_input("Tax", min_value=0.0, value=2700.0, step=100.0)
+        amount = st.number_input("Transaction Amount", min_value=0.0, value=50000.0)
+        tax = st.number_input("Tax", min_value=0.0, value=amount*0.18)
+        currency = st.selectbox("Currency", ["INR", "USD", "EUR"])
+        pay_method = st.selectbox("Method", ["Bank Transfer (NEFT)", "Corporate Credit Card", "Wire Transfer"])
 
 # -----------------------------------------
-# 5. Prediction Popup Logic
+# 5. Analysis Popup
 # -----------------------------------------
-# Using Streamlit's new dialog feature for a true popup
-@st.dialog("Prediction Complete")
-def show_prediction_popup(category):
-    # Success Lottie Animation
-    lottie_success = load_lottieurl("https://lottie.host/6b1ee372-4e76-4c33-a2d0-8cd709f4c717/fqrItzBy5I.json")
-    if lottie_success:
-        st_lottie(lottie_success, height=150, key="success_anim")
-    
-    st.markdown(f"<div class='big-prediction'>{category}</div>", unsafe_allow_html=True)
-    
-    if st.button("Close"):
-        st.rerun()
+@st.dialog("AI Financial Audit Complete")
+def show_audit(data_row):
+    # 1. Expense Prediction
+    exp_pred = encoders['expense'].inverse_transform(assets['expense'].predict(data_row))[0]
+    # 2. Revenue & Profit
+    rev_pred = assets['revenue'].predict(data_row)[0]
+    prof_pred = assets['profit'].predict(data_row)[0]
+    # 3. Risks
+    risk_lvl = encoders['risk'].inverse_transform(assets['credit'].predict(data_row))[0]
+    audit_flag = "🚨 HIGH AUDIT RISK" if assets['audit'].predict(data_row)[0] == 1 else "✅ AUDIT PASSED"
+    def_risk = "⚠️ HIGH" if assets['default'].predict(data_row)[0] == 1 else "🟢 LOW"
 
-st.write("") # Spacing
-# Send Button
-if st.button("🚀 Process Invoice", use_container_width=True, type="primary"):
-    if not final_vendor:
-        st.error("Please provide a Vendor name.")
-    else:
-        # Construct the DataFrame exactly as the model expects
-        input_data = pd.DataFrame([{
-            "Vendor": final_vendor,
-            "Division": division,
-            "Department": department,
-            "Cost Center": cost_center,
-            "Currency": currency,
-            "Payment Method": payment_method,
-            "Amount": amount,
-            "Tax": tax
-        }])
-        
-        # Make Prediction
-        pred_numeric = model_pipeline.predict(input_data)
-        pred_category = label_encoder.inverse_transform(pred_numeric)[0]
-        
-        # Trigger Popup
-        show_prediction_popup(pred_category)
+    st.markdown(f"<div class='big-prediction'>{exp_pred}</div>", unsafe_allow_html=True)
+    
+    c1, c2 = st.columns(2)
+    with c1:
+        st.write("**Forecasted Economics**")
+        st.info(f"Est. Revenue: {rev_pred:,.2f}\n\nNet Profit: {prof_pred:,.2f}")
+    with c2:
+        st.write("**Risk Assessment**")
+        st.warning(f"Credit: {risk_lvl}\n\nDefault: {def_risk}")
+    
+    st.subheader(audit_flag)
+    if st.button("Dismiss"): st.rerun()
+
+if st.button("🚀 RUN COMPLETE FINANCIAL AUDIT", use_container_width=True, type="primary"):
+    input_df = pd.DataFrame([{ 
+        "Vendor": vendor, "Division": division, "Department": dept, "Cost Center": cc, 
+        "Amount": amount, "Tax": tax, "Currency": currency, "Payment Method": pay_method 
+    }])
+    show_audit(input_df)
