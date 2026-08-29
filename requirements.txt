@@ -1,7 +1,14 @@
 streamlit
 pandas
+numpy
+plotly
+matplotlib
+seaborn
 scikit-learn==1.6.1
 xgboost==3.3.0
 streamlit-lottie
 requests
 joblib==1.5.3
+
+
+
