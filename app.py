@@ -71,7 +71,7 @@ def load_all_assets():
 def load_and_process_dataset():
     """Loads master_financial_dataset_2.csv to compute real timeline metrics and extract dropdown lists."""
     try:
-        df = pd.read_csv("master_financial_dataset_2.csv")
+        df = pd.read_csv("master_financial_dataset.csv")
         df['Invoice Date'] = pd.to_datetime(df['Invoice Date'])
         df['Month_Year'] = df['Invoice Date'].dt.to_period('M')
         
