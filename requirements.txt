@@ -9,6 +9,7 @@ xgboost==3.3.0
 streamlit-lottie
 requests
 joblib==1.5.3
+streamlit-echarts
 
 
 
