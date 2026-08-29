@@ -69,31 +69,29 @@ def load_all_assets():
 
 @st.cache_data
 def load_and_process_dataset():
-    """Loads master_financial_dataset.csv and computes real timeline metrics natively."""
+    """Loads master_financial_dataset_2.csv to compute real timeline metrics and extract dropdown lists."""
     try:
-        df = pd.read_csv("master_financial_dataset.csv")
+        df = pd.read_csv("master_financial_dataset_2.csv")
         df['Invoice Date'] = pd.to_datetime(df['Invoice Date'])
         df['Month_Year'] = df['Invoice Date'].dt.to_period('M')
         
-        # 1. Aggregate Actuals per month using REAL dataset columns
+        # 1. Aggregate Actuals per month
         monthly = df.groupby('Month_Year').agg({
-            'Amount': 'sum',      # Cash Out
-            'Revenue': 'sum',     # Cash In
-            'Net_Profit': 'sum'   # Real Profit
+            'Amount': 'sum',      
+            'Revenue': 'sum',     
+            'Net_Profit': 'sum'   
         }).reset_index()
         
         monthly['Month_Label'] = monthly['Month_Year'].dt.strftime('%b %y')
-        
-        # CONVERSION: Divide absolute ₹ by 1,00,000 for standard 'Lakhs' chart display
         monthly['Cash_Out_Lakhs'] = (monthly['Amount'] / 100000).round(2)
         monthly['Cash_In_Lakhs'] = (monthly['Revenue'] / 100000).round(2)
         monthly['Net_Profit_Lakhs'] = (monthly['Net_Profit'] / 100000).round(2)
         
-        # 2. Extract Top 5 Expenses natively
+        # 2. Extract Top 5 Expenses
         top_expenses = df.groupby('Expense Category')['Amount'].sum().nlargest(5).reset_index()
         top_expenses['Amount_Lakhs'] = (top_expenses['Amount'] / 100000).round(2)
         
-        # 3. Dynamic Radar Chart Stats by Division
+        # 3. Dynamic Radar Chart Stats
         div_stats = df.groupby('Division').agg(
             avg_credit=('Credit_Score', 'mean'),
             default_rate=('Is_Default', 'mean'),
@@ -102,37 +100,70 @@ def load_and_process_dataset():
             total_rev=('Revenue', 'sum'),
             total_profit=('Net_Profit', 'sum')
         ).reset_index()
+
+        # 4. Extract Unique Categorical Values for Dropdowns
+        dropdown_options = {
+            'Division': df['Division'].dropna().unique().tolist(),
+            'Department': df['Department'].dropna().unique().tolist(),
+            'Cost Center': df['Cost Center'].dropna().unique().tolist(),
+            'Currency': df['Currency'].dropna().unique().tolist(),
+            'Payment Method': df['Payment Method'].dropna().unique().tolist()
+        }
         
-        return df, monthly.sort_values('Month_Year'), top_expenses, div_stats
+        return df, monthly.sort_values('Month_Year'), top_expenses, div_stats, dropdown_options
     except FileNotFoundError:
-        return None, None, None, None
+        # Fallback dictionary matching the exact schema if file is missing during boot
+        fallback_options = {
+            'Division': ['VLSI Division', 'Software Division', 'Corporate / Shared'],
+            'Department': ['VLSI Engineering & Design', 'Sales & Marketing', 'Finance & Legal', 'IT & Telecom', 'Software Engineering & Dev'],
+            'Cost Center': ['CC-VLSI-ENG', 'CC-CORP-MKT', 'CC-CORP-FIN', 'CC-CORP-IT', 'CC-SW-DEV'],
+            'Currency': ['INR', 'USD'],
+            'Payment Method': ['Bank Transfer (NEFT)', 'Corporate Credit Card', 'Wire Transfer', 'Direct Debit']
+        }
+        return None, None, None, None, fallback_options
 
 assets, encoders = load_all_assets()
 lottie_ai = load_lottieurl("https://lottie.host/42d6bc52-e8e3-4716-a17e-273816e6a15e/5rXGQFkIcg.json")
-df, monthly_data, top_expenses, div_stats = load_and_process_dataset()
+df, monthly_data, top_expenses, div_stats, options = load_and_process_dataset()
 
 # -----------------------------------------
-# 3. Sidebar: Operational Inputs (Audit)
+# 3. Sidebar: Operational Inputs (Unified Schema)
 # -----------------------------------------
 with st.sidebar:
     if lottie_ai: st_lottie(lottie_ai, height=120)
     st.markdown("<h2 class='tech-font' style='text-align:center;'>Audit Terminal</h2>", unsafe_allow_html=True)
     st.divider()
     
-    vendor = st.text_input("Vendor Name", "Synopsys Inc.")
-    division = st.selectbox("Division", ["VLSI Division", "Software Division", "Corporate / Shared"])
-    dept = st.selectbox("Department", ["Design & Functional Verification (DV)", "IT & Telecom", "Finance & Legal"])
-    cc = st.selectbox("Cost Center", ["CC-HW-DV", "CC-SW-DEV", "CC-CORP-FIN"])
+    # 8-Feature Unified Schema Inputs
+    vendor = st.text_input("Vendor Name (Text)", "Synopsys Inc.")
     
-    amount = st.number_input("Transaction Amount (₹)", min_value=0.0, value=1500000.0) 
-    tax = st.number_input("Tax (₹)", min_value=0.0, value=amount*0.18)
-    currency = st.selectbox("Currency", ["INR", "USD", "EUR"], index=0)
-    pay_method = st.selectbox("Method", ["Wire Transfer", "Bank Transfer (NEFT)", "Corporate Credit Card"])
+    # Selecting defaults intelligently if available in the dataset
+    default_div = options['Division'].index('VLSI Division') if 'VLSI Division' in options['Division'] else 0
+    division = st.selectbox("Division (Categorical)", options['Division'], index=default_div)
+    
+    default_dept = options['Department'].index('VLSI Engineering & Design') if 'VLSI Engineering & Design' in options['Department'] else 0
+    dept = st.selectbox("Department (Categorical)", options['Department'], index=default_dept)
+    
+    default_cc = options['Cost Center'].index('CC-VLSI-ENG') if 'CC-VLSI-ENG' in options['Cost Center'] else 0
+    cc = st.selectbox("Cost Center (Categorical)", options['Cost Center'], index=default_cc)
+    
+    currency = st.selectbox("Currency (Categorical)", options['Currency'])
+    pay_method = st.selectbox("Payment Method (Categorical)", options['Payment Method'])
+    
+    amount = st.number_input("Transaction Amount (Numerical)", min_value=0.0, value=1500000.0) 
+    tax = st.number_input("Tax (Numerical)", min_value=0.0, value=amount*0.18)
 
     if st.button("🚀 RUN ML AUDIT", use_container_width=True, type="primary"):
-        input_df = pd.DataFrame([{ 
-            "Vendor": vendor, "Division": division, "Department": dept, "Cost Center": cc, 
-            "Amount": amount, "Tax": tax, "Currency": currency, "Payment Method": pay_method 
+        # Explicitly enforcing the 8-column schema and exact column names
+        input_data = pd.DataFrame([{ 
+            "Vendor": vendor, 
+            "Division": division, 
+            "Department": dept, 
+            "Cost Center": cc, 
+            "Currency": currency, 
+            "Payment Method": pay_method,
+            "Amount": float(amount), 
+            "Tax": float(tax) 
         }])
         
         @st.dialog("Neural Audit Report")
@@ -158,7 +189,7 @@ with st.sidebar:
             st.subheader(audit_flag)
             if st.button("Acknowledge"): st.rerun()
             
-        show_audit(input_df)
+        show_audit(input_data)
 
 # -----------------------------------------
 # 4. Main Canvas: Intelligence Dashboard
@@ -180,19 +211,12 @@ if df is not None:
     col2.metric("Operating Margin", f"{margin_pct:.1f}%", "Live Data")
     col3.metric("High-Risk Transactions", f"{high_risk_count}", "Live Data")
     col4.metric("Avg Credit Health", f"{avg_credit_health:.1f}%", "Live Data")
-else:
-    col1.metric("YTD Revenue", "₹ 0.0 Cr")
-    col2.metric("Operating Margin", "0.0%")
-    col3.metric("High-Risk Transactions", "0")
-    col4.metric("Avg Credit Health", "0.0%")
 
 st.divider()
 
-# Proceed only if dataset loaded properly
 if monthly_data is not None:
-    
     # -----------------------------------------
-    # 5. ECharts Visualizations (With Explicit Units)
+    # 5. ECharts Visualizations 
     # -----------------------------------------
     row1_col1, row1_col2 = st.columns(2)
     
@@ -206,23 +230,11 @@ if monthly_data is not None:
         st.markdown("**Monthly Cash Flow (Forecasting Base)**")
         cash_flow_options = {
             "backgroundColor": "transparent",
-            "tooltip": {
-                "trigger": "axis", 
-                "axisPointer": {"type": "shadow"},
-                "formatter": "{b}<br/>{a0}: ₹{c0} Lakhs<br/>{a1}: ₹{c1} Lakhs" 
-            },
+            "tooltip": {"trigger": "axis", "axisPointer": {"type": "shadow"}, "formatter": "{b}<br/>{a0}: ₹{c0} Lakhs<br/>{a1}: ₹{c1} Lakhs"},
             "legend": {"data": ["Inflow (Revenue)", "Outflow (Amount)", "AI Forecast"], "textStyle": {"color": "#E0E0E0"}},
             "grid": {"left": "12%", "right": "4%", "bottom": "10%", "containLabel": True},
             "xAxis": [{"type": "category", "data": months, "axisLabel": {"color": "#A0A0A0"}}],
-            "yAxis": [{
-                "type": "value", 
-                "name": "Amount (₹ in Lakhs)", 
-                "nameLocation": "middle",
-                "nameGap": 50,
-                "nameTextStyle": {"color": "#7D00FF", "fontWeight": "bold"},
-                "splitLine": {"lineStyle": {"color": "#333344"}}, 
-                "axisLabel": {"color": "#A0A0A0", "formatter": "₹{value}"}
-            }],
+            "yAxis": [{"type": "value", "name": "Amount (₹ in Lakhs)", "nameLocation": "middle", "nameGap": 50, "nameTextStyle": {"color": "#7D00FF", "fontWeight": "bold"}, "splitLine": {"lineStyle": {"color": "#333344"}}, "axisLabel": {"color": "#A0A0A0", "formatter": "₹{value}"}}],
             "series": [
                 {"name": "Inflow (Revenue)", "type": "bar", "stack": "Total", "itemStyle": {"color": "#00FF41", "borderRadius": [4, 4, 0, 0]}, "data": cash_in},
                 {"name": "Outflow (Amount)", "type": "bar", "stack": "Total", "itemStyle": {"color": "#FF003C", "borderRadius": [0, 0, 4, 4]}, "data": cash_out},
@@ -235,33 +247,11 @@ if monthly_data is not None:
         st.markdown("**Monthly Net Profit (Gradient Mapping)**")
         profit_options = {
             "backgroundColor": "transparent",
-            "tooltip": {
-                "trigger": "axis", 
-                "formatter": "Month: {b} <br/>Net Profit: ₹{c} Lakhs", 
-                "axisPointer": {"type": "cross", "label": {"backgroundColor": "#6a7985"}}
-            },
+            "tooltip": {"trigger": "axis", "formatter": "Month: {b} <br/>Net Profit: ₹{c} Lakhs", "axisPointer": {"type": "cross", "label": {"backgroundColor": "#6a7985"}}},
             "grid": {"left": "12%", "right": "4%", "bottom": "10%", "containLabel": True},
             "xAxis": [{"type": "category", "boundaryGap": False, "data": months, "axisLabel": {"color": "#A0A0A0"}}],
-            "yAxis": [{
-                "type": "value", 
-                "name": "Net Profit (₹ in Lakhs)", 
-                "nameLocation": "middle",
-                "nameGap": 50,
-                "nameTextStyle": {"color": "#7D00FF", "fontWeight": "bold"},
-                "splitLine": {"lineStyle": {"color": "#333344"}}, 
-                "axisLabel": {"color": "#A0A0A0", "formatter": "₹{value}"}
-            }],
-            "series": [{
-                "name": "Net Profit", "type": "line", "smooth": True, "lineStyle": {"width": 0}, "showSymbol": False,
-                "areaStyle": {
-                    "opacity": 0.8,
-                    "color": {
-                        "type": "linear", "x": 0, "y": 0, "x2": 0, "y2": 1,
-                        "colorStops": [{"offset": 0, "color": "#7D00FF"}, {"offset": 1, "color": "rgba(125,0,255,0.05)"}]
-                    }
-                },
-                "data": profits
-            }]
+            "yAxis": [{"type": "value", "name": "Net Profit (₹ in Lakhs)", "nameLocation": "middle", "nameGap": 50, "nameTextStyle": {"color": "#7D00FF", "fontWeight": "bold"}, "splitLine": {"lineStyle": {"color": "#333344"}}, "axisLabel": {"color": "#A0A0A0", "formatter": "₹{value}"}}],
+            "series": [{"name": "Net Profit", "type": "line", "smooth": True, "lineStyle": {"width": 0}, "showSymbol": False, "areaStyle": {"opacity": 0.8, "color": {"type": "linear", "x": 0, "y": 0, "x2": 0, "y2": 1, "colorStops": [{"offset": 0, "color": "#7D00FF"}, {"offset": 1, "color": "rgba(125,0,255,0.05)"}]}}, "data": profits}]
         }
         st_echarts(options=profit_options, height="350px")
 
@@ -270,38 +260,24 @@ if monthly_data is not None:
     with row2_col1:
         st.markdown("**Top 5 Expense Categories**")
         pie_data = [{"value": val, "name": name} for val, name in zip(top_expenses['Amount_Lakhs'], top_expenses['Expense Category'])]
-        
         expense_options = {
             "backgroundColor": "transparent",
             "tooltip": {"trigger": "item", "formatter": "<b>{b}</b> <br/>Amount: ₹{c} Lakhs ({d}%)"}, 
             "legend": {"bottom": "0%", "textStyle": {"color": "#A0A0A0"}},
-            "series": [{
-                "name": "Expense Vector", "type": "pie", "radius": ["20%", "70%"], "center": ["50%", "45%"], "roseType": "area",
-                "itemStyle": {"borderRadius": 8, "borderColor": "#1A1A24", "borderWidth": 2},
-                "label": {"color": "#E0E0E0", "formatter": "{b}\n₹{c}L"},
-                "data": pie_data
-            }]
+            "series": [{"name": "Expense Vector", "type": "pie", "radius": ["20%", "70%"], "center": ["50%", "45%"], "roseType": "area", "itemStyle": {"borderRadius": 8, "borderColor": "#1A1A24", "borderWidth": 2}, "label": {"color": "#E0E0E0", "formatter": "{b}\n₹{c}L"}, "data": pie_data}]
         }
         st_echarts(options=expense_options, height="380px")
 
     with row2_col2:
         st.markdown("**Division Risk Assessment Matrix**")
-        
-        # Dynamically map the division stats onto the 0-100 radar scale
         radar_data = []
         colors = ["#7D00FF", "#00FF41", "#FF003C"]
         for idx, row in div_stats.iterrows():
             radar_data.append({
                 "value": [
-                    (row['avg_credit'] / 850) * 100,
-                    row['default_rate'] * 100 * 5,  # Scaled up for visual variance
-                    row['audit_rate'] * 100 * 5,    # Scaled up for visual variance
-                    (row['avg_days_late'] / 30) * 100,
-                    (row['total_profit'] / row['total_rev']) * 100 * 5 # Scaled up for visual variance
+                    (row['avg_credit'] / 850) * 100, row['default_rate'] * 100 * 5, row['audit_rate'] * 100 * 5, (row['avg_days_late'] / 30) * 100, (row['total_profit'] / row['total_rev']) * 100 * 5
                 ],
-                "name": row['Division'],
-                "itemStyle": {"color": colors[idx % len(colors)]},
-                "areaStyle": {"color": f"{colors[idx % len(colors)]}4D"} # 4D is hex for ~30% opacity
+                "name": row['Division'], "itemStyle": {"color": colors[idx % len(colors)]}, "areaStyle": {"color": f"{colors[idx % len(colors)]}4D"}
             })
 
         risk_options = {
@@ -310,11 +286,7 @@ if monthly_data is not None:
             "legend": {"data": div_stats['Division'].tolist(), "bottom": "0%", "textStyle": {"color": "#A0A0A0"}},
             "radar": {
                 "indicator": [
-                    {"name": 'Avg Credit Health (Scale 0-100)', "max": 100},
-                    {"name": 'Default Risk Factor', "max": 100},
-                    {"name": 'Audit Flag Density', "max": 100},
-                    {"name": 'Payment Latency', "max": 100},
-                    {"name": 'Profitability Index', "max": 100}
+                    {"name": 'Avg Credit Health (Scale 0-100)', "max": 100}, {"name": 'Default Risk Factor', "max": 100}, {"name": 'Audit Flag Density', "max": 100}, {"name": 'Payment Latency', "max": 100}, {"name": 'Profitability Index', "max": 100}
                 ],
                 "splitArea": {"areaStyle": {"color": ["rgba(125,0,255,0.05)", "rgba(125,0,255,0.1)", "rgba(125,0,255,0.15)", "rgba(125,0,255,0.2)"]}},
                 "axisLine": {"lineStyle": {"color": "rgba(255,255,255,0.2)"}},
@@ -324,5 +296,3 @@ if monthly_data is not None:
             "series": [{"name": 'Risk Dimensions', "type": 'radar', "data": radar_data}]
         }
         st_echarts(options=risk_options, height="380px")
-else:
-    st.warning("Please ensure 'master_financial_dataset.csv' is in the same directory to render the intelligence charts.")
